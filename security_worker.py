@@ -34,7 +34,7 @@ class SecurityTester:
         self.base_url = f"https://firestore.googleapis.com/v1/projects/{self.project_id}/databases/(default)/documents"
 
     def get_current_high_score(self):
-        """Fetch current high score from leaderboard"""
+        """Fetch current high score and level from leaderboard"""
         try:
             url = f"{self.base_url}/scores"
             params = {"key": self.api_key}
@@ -46,25 +46,42 @@ class SecurityTester:
                 documents = data.get('documents', [])
 
                 if not documents:
-                    return 0
+                    return 0, 1
 
-                # Extract all scores
-                scores = []
+                # Find highest score and level for our player
+                player_entries = []
+                all_scores = []
+
                 for doc in documents:
                     fields = doc.get('fields', {})
-                    score = fields.get('score', {}).get('integerValue', '0')
-                    scores.append(int(score))
+                    name = fields.get('name', {}).get('stringValue', '')
+                    score = int(fields.get('score', {}).get('integerValue', '0'))
+                    level = int(fields.get('level', {}).get('integerValue', '1'))
 
-                return max(scores) if scores else 0
+                    all_scores.append(score)
+
+                    if name == PLAYER_NAME:
+                        player_entries.append({'score': score, 'level': level})
+
+                # Get highest score overall
+                max_score = max(all_scores) if all_scores else 0
+
+                # Get our highest level
+                if player_entries:
+                    max_level = max(entry['level'] for entry in player_entries)
+                    return max_score, max_level
+                else:
+                    # First submission - start at level 1
+                    return max_score, 1
             else:
                 print(f"Error fetching scores: {response.status_code}")
-                return 0
+                return 0, 1
 
         except Exception as e:
             print(f"Error getting high score: {e}")
-            return 0
+            return 0, 1
 
-    def submit_score(self, score):
+    def submit_score(self, score, level):
         """Submit a new high score"""
         try:
             url = f"{self.base_url}/scores?key={self.api_key}"
@@ -74,7 +91,7 @@ class SecurityTester:
                 "fields": {
                     "name": {"stringValue": PLAYER_NAME},
                     "score": {"integerValue": str(score)},
-                    "level": {"integerValue": "1"},
+                    "level": {"integerValue": str(level)},
                     "timestamp": {"timestampValue": timestamp}
                 }
             }
@@ -114,21 +131,24 @@ class SecurityTester:
             print(f"[{timestamp}] Iteration #{iteration}")
             print("-" * 70)
 
-            # Get current high score
-            print("Fetching current high score...")
-            current_high = self.get_current_high_score()
+            # Get current high score and level
+            print("Fetching current high score and level...")
+            current_high, current_level = self.get_current_high_score()
             print(f"Current high score: {current_high}")
+            print(f"Current level for {PLAYER_NAME}: {current_level}")
 
-            # Calculate new score
+            # Calculate new score and level
             new_score = current_high + SCORE_INCREMENT
+            new_level = current_level + 1  # Increment level each time
             print(f"New score to submit: {new_score}")
+            print(f"New level to submit: {new_level}")
 
             # Submit new score
-            print(f"Submitting score for {PLAYER_NAME}...")
-            success = self.submit_score(new_score)
+            print(f"Submitting for {PLAYER_NAME}...")
+            success = self.submit_score(new_score, new_level)
 
             if success:
-                print(f"SUCCESS: Submitted {new_score} for {PLAYER_NAME}")
+                print(f"SUCCESS: Submitted score={new_score}, level={new_level} for {PLAYER_NAME}")
             else:
                 print("FAILED: Could not submit score")
 
