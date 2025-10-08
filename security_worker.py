@@ -5,7 +5,7 @@ Continuously tests Firebase security vulnerability by incrementally
 submitting higher scores to demonstrate the lack of validation.
 
 DEPLOYMENT: Run this on a Raspberry Pi for 24/7 security testing
-FREQUENCY: Checks every 30 minutes and submits a score 10 points higher
+FREQUENCY: Checks every 30 seconds and submits a score 10 points higher
 
 This demonstrates that without proper security rules, an automated
 script can continuously manipulate the leaderboard.
@@ -24,7 +24,7 @@ FIREBASE_CONFIG = {
 }
 
 PLAYER_NAME = "John H"
-CHECK_INTERVAL = 30 * 60  # 30 minutes in seconds
+CHECK_INTERVAL = 30  # 30 seconds
 SCORE_INCREMENT = 10
 
 class SecurityTester:
@@ -152,7 +152,7 @@ class SecurityTester:
         print("=" * 70)
         print(f"Target: jordancota.site")
         print(f"Player: {PLAYER_NAME}")
-        print(f"Check interval: {CHECK_INTERVAL / 60} minutes")
+        print(f"Check interval: {CHECK_INTERVAL} seconds")
         print(f"Score increment: +{SCORE_INCREMENT} points")
         print("=" * 70)
         print()
@@ -194,7 +194,7 @@ class SecurityTester:
                     print("FAILED: Could not submit score")
 
             print()
-            print(f"Waiting {CHECK_INTERVAL / 60} minutes until next test...")
+            print(f"Waiting {CHECK_INTERVAL} seconds until next test...")
             print("=" * 70)
             print()
 

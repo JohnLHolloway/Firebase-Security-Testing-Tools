@@ -21,7 +21,14 @@
       "Bash(dir:*)",
       "Bash(del master_server.py worker_daemon.py test_worker.py evaluation_system.py DISTRIBUTED_TRAINING_ARCHITECTURE.md RASPBERRY_PI_SETUP_GUIDE.md SESSION_SUMMARY.md PROJECT_STRUCTURE.md QUICK_REFERENCE.md QUICK_START.md FINAL_README.md)",
       "Bash(timeout:*)",
-      "Bash(git remote set-url:*)"
+      "Bash(git remote set-url:*)",
+      "Read(//c/Users/jlhol/OneDrive/Desktop/**)",
+      "Bash(cmd //c:*)",
+      "Bash(scp:*)",
+      "Bash(ssh pi@192.168.1.194 \"pkill -f security_worker.py && nohup python3 security_worker.py > security_worker.log 2>&1 &\")",
+      "Bash(ssh pi@192.168.1.194 \"ps aux | grep security_worker.py\")",
+      "Bash(ssh pi@192.168.1.194 \"kill 1909 && cd ~/security-testing && nohup python3 security_worker.py > security_worker.log 2>&1 & echo ''Restarted''\")",
+      "Bash(ssh pi@192.168.1.194 \"ps aux | grep -v grep | grep security_worker.py\")"
     ],
     "deny": [],
     "ask": []
