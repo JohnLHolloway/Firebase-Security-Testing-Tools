@@ -189,9 +189,76 @@ def dashboard():
     </div>
 
     <div class="section">
+        <h2>🔧 Actions</h2>
         <button onclick="location.reload()">Refresh Now</button>
         <button onclick="if(confirm('Create 3 new test jobs?')) fetch('/create_test_jobs', {method: 'POST'}).then(() => location.reload())">Create Test Jobs</button>
+        <button onclick="scanNetwork()">Scan for RPis</button>
     </div>
+
+    <div class="section" id="rpi-deployment" style="display:none;">
+        <h2>🥧 Deploy to Raspberry Pis</h2>
+        <div id="discovered-pis"></div>
+    </div>
+
+    <script>
+    function scanNetwork() {
+        document.getElementById('rpi-deployment').style.display = 'block';
+        document.getElementById('discovered-pis').innerHTML = '<p>Scanning network...</p>';
+
+        fetch('/scan_rpis')
+            .then(response => response.json())
+            .then(data => {
+                if (data.found && data.found.length > 0) {
+                    let html = '<h3>Found ' + data.found.length + ' Raspberry Pi(s)</h3>';
+                    data.found.forEach(pi => {
+                        html += '<div class="worker" style="display:flex; justify-content:space-between; align-items:center;">';
+                        html += '<div><strong>' + pi.hostname + '</strong> (' + pi.ip + ')</div>';
+                        html += '<button onclick="deployToPi(\'' + pi.ip + '\', \'' + pi.hostname + '\')">Deploy Worker</button>';
+                        html += '</div>';
+                    });
+                    document.getElementById('discovered-pis').innerHTML = html;
+                } else {
+                    document.getElementById('discovered-pis').innerHTML = '<p>No Raspberry Pis found on network.</p>';
+                }
+            })
+            .catch(err => {
+                document.getElementById('discovered-pis').innerHTML = '<p>Error scanning: ' + err + '</p>';
+            });
+    }
+
+    function deployToPi(ip, hostname) {
+        const username = prompt('Enter SSH username for ' + hostname + ':', 'pi');
+        if (!username) return;
+
+        const password = prompt('Enter SSH password:');
+        if (!password) return;
+
+        document.getElementById('discovered-pis').innerHTML += '<p>Deploying to ' + hostname + '...</p>';
+
+        fetch('/deploy_worker', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                ip: ip,
+                hostname: hostname,
+                username: username,
+                password: password
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Successfully deployed worker to ' + hostname + '!\\nWorker should connect automatically.');
+                location.reload();
+            } else {
+                alert('Deployment failed: ' + data.error);
+            }
+        })
+        .catch(err => {
+            alert('Error deploying: ' + err);
+        });
+    }
+    </script>
 </body>
 </html>
     """
@@ -304,6 +371,153 @@ def create_test_jobs():
     job_queue.extend(new_jobs)
     print(f"📋 Created {len(new_jobs)} new test jobs")
     return jsonify({"status": "created", "count": len(new_jobs)})
+
+@app.route('/scan_rpis', methods=['GET'])
+def scan_rpis():
+    """Scan network for Raspberry Pis"""
+    try:
+        # Get local network
+        discovery = WorkerDiscovery()
+        network, local_ip = discovery.get_local_network()
+
+        if not network:
+            return jsonify({"found": [], "error": "Could not determine network"})
+
+        print(f"Scanning {network} for Raspberry Pis...")
+
+        # Simple approach: scan for open SSH port (22)
+        found_pis = []
+
+        # Quick scan for SSH on common RPi IPs
+        import concurrent.futures
+
+        def check_pi(ip_str):
+            try:
+                import socket
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(0.5)
+                result = sock.connect_ex((ip_str, 22))  # SSH port
+                sock.close()
+
+                if result == 0:
+                    # Try to get hostname
+                    try:
+                        hostname = socket.gethostbyaddr(ip_str)[0]
+                    except:
+                        hostname = ip_str
+
+                    # Check if it looks like a Pi
+                    if any(x in hostname.lower() for x in ['raspberrypi', 'rpi', 'pi']):
+                        return {"ip": ip_str, "hostname": hostname}
+                    # Or if SSH is open, assume it might be a Pi
+                    elif hostname != ip_str:
+                        return {"ip": ip_str, "hostname": hostname}
+            except:
+                pass
+            return None
+
+        # Scan network
+        with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
+            results = executor.map(check_pi, [str(ip) for ip in network.hosts()])
+            found_pis = [pi for pi in results if pi]
+
+        print(f"Found {len(found_pis)} potential Raspberry Pis")
+        return jsonify({"found": found_pis})
+
+    except Exception as e:
+        print(f"Error scanning: {e}")
+        return jsonify({"found": [], "error": str(e)})
+
+@app.route('/deploy_worker', methods=['POST'])
+def deploy_worker():
+    """Deploy worker to Raspberry Pi via SSH"""
+    import paramiko
+    import os
+
+    data = request.json
+    ip = data.get('ip')
+    hostname = data.get('hostname')
+    username = data.get('username')
+    password = data.get('password')
+
+    print(f"\nDeploying worker to {hostname} ({ip})...")
+
+    try:
+        # Connect via SSH
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(ip, username=username, password=password, timeout=10)
+
+        print(f"✅ Connected to {hostname}")
+
+        # Get master IP
+        master_ip = request.host.split(':')[0]
+
+        # Create deployment script
+        deploy_script = f"""
+#!/bin/bash
+set -e
+
+echo "Setting up ML training worker on {hostname}..."
+
+# Update system
+sudo apt update
+
+# Install dependencies
+sudo apt install -y python3-pip git chromium-browser chromium-chromedriver
+
+# Create project directory
+mkdir -p ~/ml-training
+cd ~/ml-training
+
+# Install Python packages
+pip3 install flask requests stable-baselines3 selenium opencv-python pillow numpy beautifulsoup4
+
+echo "Installation complete!"
+echo "Master server: {master_ip}:5000"
+"""
+
+        # Upload files
+        sftp = ssh.open_sftp()
+
+        # Upload worker daemon
+        project_dir = os.path.dirname(os.path.abspath(__file__))
+        files_to_upload = [
+            'worker_daemon.py',
+            'stable_web_env.py',
+            'train_fixed.py',
+            'get_high_score.py',
+            'requirements.txt'
+        ]
+
+        for filename in files_to_upload:
+            local_path = os.path.join(project_dir, filename)
+            remote_path = f'/home/{username}/ml-training/{filename}'
+
+            if os.path.exists(local_path):
+                print(f"  Uploading {filename}...")
+                sftp.put(local_path, remote_path)
+
+        sftp.close()
+
+        # Run setup
+        print("  Running setup...")
+        stdin, stdout, stderr = ssh.exec_command('cd ~/ml-training && pip3 install flask requests')
+        stdout.channel.recv_exit_status()  # Wait for completion
+
+        # Start worker in background
+        print("  Starting worker...")
+        command = f'cd ~/ml-training && nohup python3 worker_daemon.py --master {master_ip} > worker.log 2>&1 &'
+        ssh.exec_command(command)
+
+        ssh.close()
+
+        print(f"✅ Successfully deployed to {hostname}")
+        return jsonify({"success": True, "message": f"Worker deployed to {hostname}"})
+
+    except Exception as e:
+        print(f"❌ Deployment failed: {e}")
+        return jsonify({"success": False, "error": str(e)})
 
 # Job Creation
 
