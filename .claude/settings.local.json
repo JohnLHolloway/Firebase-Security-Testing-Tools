@@ -10,7 +10,16 @@
       "Bash(git commit:*)",
       "Bash(git push:*)",
       "Bash(pip install:*)",
-      "Bash(if exist nul del /F nul)"
+      "Bash(if exist nul del /F nul)",
+      "Bash(curl -X POST http://localhost:5000/deploy_worker -H \"Content-Type: application/json\" -d \"{\"\"ip\"\":\"\"192.168.1.194\"\",\"\"username\"\":\"\"pi\"\",\"\"password\"\":\"\"raspberry\"\"}\")",
+      "Bash(dir worker_daemon.py stable_web_env.py train_fixed.py get_high_score.py requirements.txt)",
+      "Bash(curl -X POST http://localhost:5000/deploy_worker -H \"Content-Type: application/json\" -d \"{\"\"ip\"\":\"\"192.168.1.194\"\",\"\"hostname\"\":\"\"raspberrypi\"\",\"\"username\"\":\"\"pi\"\",\"\"password\"\":\"\"raspberry\"\"}\")",
+      "Bash(ssh pi@192.168.1.194 \"ps aux | grep worker_daemon.py\")",
+      "Bash(sshpass:*)",
+      "Bash(curl:*)",
+      "Bash(wmic path win32_VideoController get:*)",
+      "Bash(dir:*)",
+      "Bash(del master_server.py worker_daemon.py test_worker.py evaluation_system.py DISTRIBUTED_TRAINING_ARCHITECTURE.md RASPBERRY_PI_SETUP_GUIDE.md SESSION_SUMMARY.md PROJECT_STRUCTURE.md QUICK_REFERENCE.md QUICK_START.md FINAL_README.md)"
     ],
     "deny": [],
     "ask": []
