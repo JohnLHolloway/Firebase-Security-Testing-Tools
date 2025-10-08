@@ -57,9 +57,11 @@ ssh pi@192.168.1.194 'sudo journalctl -u security-worker -f'
 
 The worker will:
 - Check leaderboard every 30 minutes
-- Submit score 10 points higher than current high score
+- Only submit if "John H" is NOT currently the leader
+- Submit score 10 points higher than current high score when needed
+- Increment level with each submission
 - Run continuously as system service
-- Demonstrate persistent vulnerability exploitation
+- Demonstrate reactive vulnerability exploitation
 
 ### Manual Worker Execution
 
@@ -175,10 +177,13 @@ The automated worker demonstrates:
 - Impact of missing validation
 
 Expected behavior:
-- Leaderboard position for "John H" steadily increases
+- Worker monitors leaderboard every 30 minutes
+- Only submits when someone else beats "John H"
+- When submitting, adds 10 points to current high score
+- Level increments with each submission
 - No alerts or blocking mechanisms trigger
-- Score increments predictably every 30 minutes
 - Database accepts all submissions without validation
+- Demonstrates reactive, competitive exploitation
 
 ## License
 
