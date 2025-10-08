@@ -28,7 +28,8 @@
       "Bash(ssh pi@192.168.1.194 \"pkill -f security_worker.py && nohup python3 security_worker.py > security_worker.log 2>&1 &\")",
       "Bash(ssh pi@192.168.1.194 \"ps aux | grep security_worker.py\")",
       "Bash(ssh pi@192.168.1.194 \"kill 1909 && cd ~/security-testing && nohup python3 security_worker.py > security_worker.log 2>&1 & echo ''Restarted''\")",
-      "Bash(ssh pi@192.168.1.194 \"ps aux | grep -v grep | grep security_worker.py\")"
+      "Bash(ssh pi@192.168.1.194 \"ps aux | grep -v grep | grep security_worker.py\")",
+      "Bash(python3:*)"
     ],
     "deny": [],
     "ask": []
