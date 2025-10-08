@@ -14,12 +14,14 @@ import threading
 import platform
 
 class TrainingWorker:
-    def __init__(self, master_ip=None, project_dir=None):
+    def __init__(self, master_ip=None, project_dir=None, autonomous=True):
         self.master_ip = master_ip
         self.hostname = socket.gethostname()
         self.worker_id = None
         self.running = True
         self.project_dir = project_dir or os.getcwd()
+        self.autonomous = autonomous  # Run standalone if master unavailable
+        self.master_available = False
 
     def discover_master(self):
         """Listen for master broadcast"""
@@ -76,6 +78,10 @@ class TrainingWorker:
             self.master_ip = self.discover_master()
 
         if not self.master_ip:
+            if self.autonomous:
+                print("⚠️  No master found - running in AUTONOMOUS mode")
+                self.master_available = False
+                return True  # Continue in standalone mode
             return False
 
         url = f"http://{self.master_ip}:5000/register"
@@ -88,10 +94,15 @@ class TrainingWorker:
             response = requests.post(url, json=data, timeout=5)
             if response.status_code == 200:
                 self.worker_id = response.json().get("worker_id")
+                self.master_available = True
                 print(f"✅ Registered with master as {self.worker_id}")
                 return True
         except Exception as e:
             print(f"❌ Registration failed: {e}")
+            if self.autonomous:
+                print("⚠️  Running in AUTONOMOUS mode")
+                self.master_available = False
+                return True
 
         return False
 
@@ -201,7 +212,33 @@ class TrainingWorker:
             }
 
     def report_result(self, result):
-        """Report job completion to master"""
+        """Report job completion to master (or save locally if offline)"""
+        if not self.master_available or not self.master_ip:
+            # Autonomous mode - save locally
+            print(f"💾 Master offline - saving results locally")
+            results_file = os.path.join(self.project_dir, "offline_results.json")
+
+            try:
+                # Load existing results
+                results = []
+                if os.path.exists(results_file):
+                    with open(results_file, 'r') as f:
+                        results = json.load(f)
+
+                # Add new result
+                results.append(result)
+
+                # Save
+                with open(results_file, 'w') as f:
+                    json.dump(results, f, indent=2)
+
+                print(f"✅ Results saved to {results_file}")
+                return True
+            except Exception as e:
+                print(f"❌ Failed to save results: {e}")
+                return False
+
+        # Master available - report normally
         try:
             url = f"http://{self.master_ip}:5000/report_result"
             response = requests.post(url, json=result, timeout=10)

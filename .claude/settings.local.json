@@ -6,7 +6,11 @@
       "Bash(findstr:*)",
       "Bash(if not exist archive mkdir archive)",
       "Bash(move:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(pip install:*)",
+      "Bash(if exist nul del /F nul)"
     ],
     "deny": [],
     "ask": []
