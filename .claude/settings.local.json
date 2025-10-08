@@ -19,7 +19,8 @@
       "Bash(curl:*)",
       "Bash(wmic path win32_VideoController get:*)",
       "Bash(dir:*)",
-      "Bash(del master_server.py worker_daemon.py test_worker.py evaluation_system.py DISTRIBUTED_TRAINING_ARCHITECTURE.md RASPBERRY_PI_SETUP_GUIDE.md SESSION_SUMMARY.md PROJECT_STRUCTURE.md QUICK_REFERENCE.md QUICK_START.md FINAL_README.md)"
+      "Bash(del master_server.py worker_daemon.py test_worker.py evaluation_system.py DISTRIBUTED_TRAINING_ARCHITECTURE.md RASPBERRY_PI_SETUP_GUIDE.md SESSION_SUMMARY.md PROJECT_STRUCTURE.md QUICK_REFERENCE.md QUICK_START.md FINAL_README.md)",
+      "Bash(timeout:*)"
     ],
     "deny": [],
     "ask": []

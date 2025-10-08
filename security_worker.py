@@ -69,7 +69,7 @@ class SecurityTester:
         try:
             url = f"{self.base_url}/scores?key={self.api_key}"
 
-            timestamp = datetime.utcnow().isoformat() + "Z"
+            timestamp = datetime.now().isoformat() + "Z"
             payload = {
                 "fields": {
                     "name": {"stringValue": PLAYER_NAME},
