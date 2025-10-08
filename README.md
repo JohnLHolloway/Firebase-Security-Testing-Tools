@@ -1,109 +1,189 @@
-# Space Invaders ML Training
+# Firebase Security Testing Tools
 
-Train a reinforcement learning model to beat the high score on [jordancota.site](https://jordancota.site) Space Invaders.
+Automated security testing tools for demonstrating Firebase Firestore vulnerabilities.
 
-**Goal:** Beat 25,940 points and submit as "John H" to the leaderboard.
+**Target:** jordancota.site Space Invaders leaderboard
+**Purpose:** Security testing and vulnerability demonstration
 
-## Quick Start
+## Overview
 
-```bash
-# Install dependencies
-pip install stable-baselines3 selenium opencv-python pillow numpy beautifulsoup4 gymnasium
-
-# Start training (10 million timesteps = ~24-48 hours)
-python train_fixed.py --timesteps 10000000
-```
+This repository contains tools to test and demonstrate critical security vulnerabilities in web applications using Firebase Firestore without proper security rules.
 
 ## Files
 
-- **[train_fixed.py](train_fixed.py)** - Main training script
-- **[stable_web_env.py](stable_web_env.py)** - Gymnasium environment for the web game
-- **[get_high_score.py](get_high_score.py)** - Scrapes current high score from website
-- **[requirements.txt](requirements.txt)** - Python dependencies
+- **[security_test.py](security_test.py)** - One-time security vulnerability demonstration
+- **[security_worker.py](security_worker.py)** - Continuous automated security testing worker
+- **[deploy_to_rpi.sh](deploy_to_rpi.sh)** - Deployment script for Raspberry Pi
 
-## Training Options
+## Vulnerability Description
 
-```bash
-# Short test run
-python train_fixed.py --timesteps 100000
+The target website exposes Firebase credentials in client-side JavaScript and has no security rules, allowing:
 
-# Medium run (2-4 hours)
-python train_fixed.py --timesteps 1000000
+1. **Arbitrary Database Writes** - Anyone can submit scores without playing
+2. **No Authentication** - No validation of legitimate gameplay
+3. **Public Data Access** - Full database readable by anyone
+4. **No Rate Limiting** - Automated scripts can spam submissions
 
-# Long run (24-48 hours) - Recommended
-python train_fixed.py --timesteps 10000000
+## Usage
 
-# Very long run (48-96 hours)
-python train_fixed.py --timesteps 50000000
-```
+### One-Time Security Test
 
-## Monitoring Training
-
-Training creates TensorBoard logs in `./tensorboard/`:
+Run the demonstration script to show the vulnerability:
 
 ```bash
-tensorboard --logdir=./tensorboard
+python security_test.py
 ```
 
-Open http://localhost:6006 to see:
-- Average reward per episode
-- Episode length
-- Training loss/metrics
+This will:
+- Show exposed Firebase credentials
+- Demonstrate payload structure
+- Test database read access
+- Display security recommendations
 
-## How It Works
+**Note:** Runs in DRY RUN mode - no actual submissions
 
-1. **Environment** ([stable_web_env.py](stable_web_env.py)): Controls Chrome browser, takes screenshots, executes actions
-2. **Model**: PPO (Proximal Policy Optimization) from Stable-Baselines3
-3. **Observations**: 84x84 grayscale screenshots of game
-4. **Actions**: 6 possible (idle, left, right, shoot, left+shoot, right+shoot)
-5. **Reward**: Game score delta
+### Continuous Security Testing (Raspberry Pi)
 
-## Progress
+Deploy the automated worker to continuously test the vulnerability:
 
-Trained models are saved to `./models/` every 50,000 steps with filenames like:
+```bash
+# 1. Edit deploy_to_rpi.sh with your RPi IP address
+# 2. Run deployment script
+bash deploy_to_rpi.sh
+
+# 3. Monitor on Raspberry Pi
+ssh pi@192.168.1.194 'sudo journalctl -u security-worker -f'
 ```
-ppo_spaceinvaders_1000000_steps.zip
+
+The worker will:
+- Check leaderboard every 30 minutes
+- Submit score 10 points higher than current high score
+- Run continuously as system service
+- Demonstrate persistent vulnerability exploitation
+
+### Manual Worker Execution
+
+To run the worker without deploying to RPi:
+
+```bash
+python security_worker.py
 ```
 
-Load a trained model:
+Press Ctrl+C to stop.
+
+## Configuration
+
+Edit `security_worker.py` to customize:
+
 ```python
-from stable_baselines3 import PPO
-model = PPO.load("models/ppo_spaceinvaders_1000000_steps.zip")
+PLAYER_NAME = "John H"          # Name to submit
+CHECK_INTERVAL = 30 * 60        # 30 minutes (in seconds)
+SCORE_INCREMENT = 10            # Points to add each time
 ```
 
-## Current Status
+## Security Recommendations
 
-- Environment bug fixed (game detection now works correctly)
-- Training confirmed working (scores improving: 70 → 85 → 101 → 133+)
-- Target: 25,940 points
-- Strategy: Single long training run on Windows PC
+### For Website Owner:
 
-## Tips
+**1. Implement Firebase Security Rules:**
+```javascript
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /scores/{score} {
+      allow read: if true;
+      allow write: if false;  // Disable all client writes
+    }
+  }
+}
+```
 
-- **Be patient** - Reaching 25,940 points will take millions of timesteps
-- **Watch for plateaus** - If score stops improving after 5M+ steps, may need hyperparameter tuning
-- **Check progress** - Look at `ep_rew_mean` in training output to see average scores
-- **Let it run** - Best results come from uninterrupted 24-48 hour training sessions
+**2. Use Firebase Cloud Functions:**
+- Move score submission to server-side
+- Validate gameplay before accepting scores
+- Implement rate limiting
 
-## Troubleshooting
+**3. Add Authentication:**
+- Use Firebase Authentication
+- Track user sessions
+- Require auth for score submission
 
-**"ModuleNotFoundError: No module named 'stable_baselines3'"**
+**4. Implement Anti-Cheat:**
+- Verify game state progression
+- Use signed tokens
+- Track session timestamps
+- Validate score increments
+
+**5. Protect API Keys:**
+- Use environment variables
+- Restrict API keys to specific domains
+- Never expose credentials in client code
+
+## Deployment to Raspberry Pi
+
+The `deploy_to_rpi.sh` script will:
+1. Copy worker script to RPi
+2. Create systemd service
+3. Enable auto-start on boot
+4. Start the worker
+
+**Commands:**
 ```bash
-pip install stable-baselines3
+# Check status
+ssh pi@192.168.1.194 'sudo systemctl status security-worker'
+
+# View logs
+ssh pi@192.168.1.194 'sudo journalctl -u security-worker -f'
+
+# Stop worker
+ssh pi@192.168.1.194 'sudo systemctl stop security-worker'
+
+# Restart worker
+ssh pi@192.168.1.194 'sudo systemctl restart security-worker'
 ```
 
-**Chrome crashes or hangs**
-- Training runs in headless mode by default
-- If issues persist, restart training (model checkpoints are saved)
+## Requirements
 
-**Scores not improving**
-- Make sure you're training for at least 1M timesteps
-- Early training (0-500k steps) shows high variance
-- Real learning happens around 1M-5M steps
+```bash
+pip install requests
+```
 
-## Hardware
+That's it! The scripts only need the `requests` library.
 
-- **CPU**: Training works on CPU (current setup)
-- **GPU**: Intel Arc GPU detected but PyTorch not configured for it (optional optimization)
-- **RAM**: Recommended 8GB+
-- **Disk**: ~500MB for models and tensorboard logs
+## Ethical Considerations
+
+These tools are for:
+- ✅ Security testing with permission
+- ✅ Demonstrating vulnerabilities to developers
+- ✅ Educational purposes
+- ✅ Improving web application security
+
+**NOT** for:
+- ❌ Malicious hacking
+- ❌ Unauthorized access
+- ❌ Data theft
+- ❌ Service disruption
+
+Always obtain permission before testing third-party systems.
+
+## Results
+
+The automated worker demonstrates:
+- Continuous exploitation over time
+- Lack of detection mechanisms
+- Need for proper security implementation
+- Impact of missing validation
+
+Expected behavior:
+- Leaderboard position for "John H" steadily increases
+- No alerts or blocking mechanisms trigger
+- Score increments predictably every 30 minutes
+- Database accepts all submissions without validation
+
+## License
+
+MIT License - For educational and security testing purposes only.
+
+## Contact
+
+For questions about security testing or vulnerability reporting, contact the website administrator directly.
