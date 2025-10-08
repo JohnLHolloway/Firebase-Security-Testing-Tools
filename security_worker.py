@@ -33,6 +33,38 @@ class SecurityTester:
         self.api_key = FIREBASE_CONFIG["apiKey"]
         self.base_url = f"https://firestore.googleapis.com/v1/projects/{self.project_id}/databases/(default)/documents"
 
+    def calculate_level_from_score(self, score, legitimate_entries):
+        """Calculate level based on linear distribution of legitimate scores"""
+        if not legitimate_entries:
+            # No legitimate entries - default to level 1
+            return 1
+
+        # Filter out any zero scores
+        valid_entries = [e for e in legitimate_entries if e['score'] > 0]
+        if not valid_entries:
+            return 1
+
+        # Sort by score
+        sorted_entries = sorted(valid_entries, key=lambda x: x['score'])
+
+        # Find where our score would fit
+        min_score = sorted_entries[0]['score']
+        max_score = sorted_entries[-1]['score']
+        min_level = sorted_entries[0]['level']
+        max_level = sorted_entries[-1]['level']
+
+        if score <= min_score:
+            return min_level
+        elif score >= max_score:
+            return max_level
+        else:
+            # Linear interpolation
+            score_range = max_score - min_score
+            level_range = max_level - min_level
+            score_position = (score - min_score) / score_range
+            calculated_level = min_level + int(score_position * level_range)
+            return max(1, calculated_level)  # Ensure at least level 1
+
     def get_current_high_score(self):
         """Fetch current high score and level from leaderboard, plus who has it"""
         try:
@@ -46,11 +78,12 @@ class SecurityTester:
                 documents = data.get('documents', [])
 
                 if not documents:
-                    return 0, 1, None, True
+                    return 0, 1, None, True, []
 
-                # Find highest score and level for our player
+                # Separate entries by player
                 player_entries = []
                 all_entries = []
+                legitimate_entries = []  # Entries NOT from John H
 
                 for doc in documents:
                     fields = doc.get('fields', {})
@@ -58,10 +91,13 @@ class SecurityTester:
                     score = int(fields.get('score', {}).get('integerValue', '0'))
                     level = int(fields.get('level', {}).get('integerValue', '1'))
 
-                    all_entries.append({'name': name, 'score': score, 'level': level})
+                    entry = {'name': name, 'score': score, 'level': level}
+                    all_entries.append(entry)
 
                     if name == PLAYER_NAME:
-                        player_entries.append({'score': score, 'level': level})
+                        player_entries.append(entry)
+                    else:
+                        legitimate_entries.append(entry)
 
                 # Find who has the highest score
                 max_entry = max(all_entries, key=lambda x: x['score'])
@@ -71,20 +107,14 @@ class SecurityTester:
                 # Check if John H is the current leader
                 is_john_h_leader = (high_score_holder == PLAYER_NAME)
 
-                # Get our highest level
-                if player_entries:
-                    max_level = max(entry['level'] for entry in player_entries)
-                    return max_score, max_level, high_score_holder, is_john_h_leader
-                else:
-                    # First submission - start at level 1
-                    return max_score, 1, high_score_holder, False
+                return max_score, 0, high_score_holder, is_john_h_leader, legitimate_entries
             else:
                 print(f"Error fetching scores: {response.status_code}")
-                return 0, 1, None, True
+                return 0, 1, None, True, []
 
         except Exception as e:
             print(f"Error getting high score: {e}")
-            return 0, 1, None, True
+            return 0, 1, None, True, []
 
     def submit_score(self, score, level):
         """Submit a new high score"""
@@ -136,22 +166,22 @@ class SecurityTester:
             print(f"[{timestamp}] Iteration #{iteration}")
             print("-" * 70)
 
-            # Get current high score and level
-            print("Fetching current high score and level...")
-            current_high, current_level, leader_name, is_john_h_leader = self.get_current_high_score()
+            # Get current high score and legitimate entries
+            print("Fetching current high score and legitimate entries...")
+            current_high, _, leader_name, is_john_h_leader, legitimate_entries = self.get_current_high_score()
             print(f"Current high score: {current_high} (held by: {leader_name})")
-            print(f"Current level for {PLAYER_NAME}: {current_level}")
+            print(f"Found {len(legitimate_entries)} legitimate entries (excluding {PLAYER_NAME})")
 
             # Check if John H is already the leader
             if is_john_h_leader:
                 print(f"✓ {PLAYER_NAME} is already the leader! No submission needed.")
                 print(f"  Waiting for someone else to beat the score...")
             else:
-                # Calculate new score and level
+                # Calculate new score and level based on distribution
                 new_score = current_high + SCORE_INCREMENT
-                new_level = current_level + 1  # Increment level each time
+                new_level = self.calculate_level_from_score(new_score, legitimate_entries)
                 print(f"New score to submit: {new_score}")
-                print(f"New level to submit: {new_level}")
+                print(f"Calculated level (based on score distribution): {new_level}")
 
                 # Submit new score
                 print(f"Submitting for {PLAYER_NAME}...")
