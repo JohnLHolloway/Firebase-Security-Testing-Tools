@@ -34,7 +34,7 @@ class SecurityTester:
         self.base_url = f"https://firestore.googleapis.com/v1/projects/{self.project_id}/databases/(default)/documents"
 
     def get_current_high_score(self):
-        """Fetch current high score and level from leaderboard"""
+        """Fetch current high score and level from leaderboard, plus who has it"""
         try:
             url = f"{self.base_url}/scores"
             params = {"key": self.api_key}
@@ -46,11 +46,11 @@ class SecurityTester:
                 documents = data.get('documents', [])
 
                 if not documents:
-                    return 0, 1
+                    return 0, 1, None, True
 
                 # Find highest score and level for our player
                 player_entries = []
-                all_scores = []
+                all_entries = []
 
                 for doc in documents:
                     fields = doc.get('fields', {})
@@ -58,28 +58,33 @@ class SecurityTester:
                     score = int(fields.get('score', {}).get('integerValue', '0'))
                     level = int(fields.get('level', {}).get('integerValue', '1'))
 
-                    all_scores.append(score)
+                    all_entries.append({'name': name, 'score': score, 'level': level})
 
                     if name == PLAYER_NAME:
                         player_entries.append({'score': score, 'level': level})
 
-                # Get highest score overall
-                max_score = max(all_scores) if all_scores else 0
+                # Find who has the highest score
+                max_entry = max(all_entries, key=lambda x: x['score'])
+                max_score = max_entry['score']
+                high_score_holder = max_entry['name']
+
+                # Check if John H is the current leader
+                is_john_h_leader = (high_score_holder == PLAYER_NAME)
 
                 # Get our highest level
                 if player_entries:
                     max_level = max(entry['level'] for entry in player_entries)
-                    return max_score, max_level
+                    return max_score, max_level, high_score_holder, is_john_h_leader
                 else:
                     # First submission - start at level 1
-                    return max_score, 1
+                    return max_score, 1, high_score_holder, False
             else:
                 print(f"Error fetching scores: {response.status_code}")
-                return 0, 1
+                return 0, 1, None, True
 
         except Exception as e:
             print(f"Error getting high score: {e}")
-            return 0, 1
+            return 0, 1, None, True
 
     def submit_score(self, score, level):
         """Submit a new high score"""
@@ -133,24 +138,30 @@ class SecurityTester:
 
             # Get current high score and level
             print("Fetching current high score and level...")
-            current_high, current_level = self.get_current_high_score()
-            print(f"Current high score: {current_high}")
+            current_high, current_level, leader_name, is_john_h_leader = self.get_current_high_score()
+            print(f"Current high score: {current_high} (held by: {leader_name})")
             print(f"Current level for {PLAYER_NAME}: {current_level}")
 
-            # Calculate new score and level
-            new_score = current_high + SCORE_INCREMENT
-            new_level = current_level + 1  # Increment level each time
-            print(f"New score to submit: {new_score}")
-            print(f"New level to submit: {new_level}")
-
-            # Submit new score
-            print(f"Submitting for {PLAYER_NAME}...")
-            success = self.submit_score(new_score, new_level)
-
-            if success:
-                print(f"SUCCESS: Submitted score={new_score}, level={new_level} for {PLAYER_NAME}")
+            # Check if John H is already the leader
+            if is_john_h_leader:
+                print(f"✓ {PLAYER_NAME} is already the leader! No submission needed.")
+                print(f"  Waiting for someone else to beat the score...")
             else:
-                print("FAILED: Could not submit score")
+                # Calculate new score and level
+                new_score = current_high + SCORE_INCREMENT
+                new_level = current_level + 1  # Increment level each time
+                print(f"New score to submit: {new_score}")
+                print(f"New level to submit: {new_level}")
+
+                # Submit new score
+                print(f"Submitting for {PLAYER_NAME}...")
+                success = self.submit_score(new_score, new_level)
+
+                if success:
+                    print(f"SUCCESS: Submitted score={new_score}, level={new_level} for {PLAYER_NAME}")
+                    print(f"  {PLAYER_NAME} is now the leader!")
+                else:
+                    print("FAILED: Could not submit score")
 
             print()
             print(f"Waiting {CHECK_INTERVAL / 60} minutes until next test...")
